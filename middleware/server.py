@@ -445,11 +445,18 @@ def dispatcher():
                 # logger.debug("Dispatcher: Slot acquired. Waiting for user...")
                 # Get ticket from queue (Blocking wait for a user to arrive)
                 logger.info("Dispatcher: Waiting for queue item...")
-                priority, timestamp, uid, user_event = request_queue.get(timeout=1)            
+                # REFACTOR: Get Simple Tuple
+                priority, timestamp, uid = request_queue.get(timeout=1)            
                 
-                # 3. Wake them up
-                logger.info(f"Dispatcher: Waking up Request {uid} (Priority {priority})")
-                user_event.set()
+                # Retrieve Event safely
+                user_event = request_events.get(uid)
+                
+                if user_event:
+                    # 3. Wake them up
+                    logger.info(f"Dispatcher: Waking up Request {uid} (Priority {priority})")
+                    user_event.set()
+                else:
+                     logger.warning(f"⚠️ Dispatcher: Event for {uid} not found (User gave up?)")
                 
             except queue.Empty:
                 # No users waiting? Release the slot so we can loop back and check again
