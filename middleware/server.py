@@ -273,7 +273,7 @@ def chat(current_user):
     # Enqueue: (Priority, Timestamp, UniqueID, UserEvent)
     req_id = next(unique_counter)
     request_queue.put((priority, time.time(), req_id, my_turn_event))
-    logger.info(f"📥 Queued Request {req_id} (Priority: {priority})")
+    logger.info(f"📥 Queued Request {req_id} (Priority: {priority}) | QueueID: {id(request_queue)}")
     
     # 4. Wait for Dispatcher to wake us up
     # Commanders will be woken up before Conscripts
@@ -358,21 +358,8 @@ def chat(current_user):
         active_requests_sem.release() # Release slot on error
         return jsonify({"error": "BACKEND_FAILURE"}), 502
 
-import queue
-import threading
-import json
-import itertools
-import boto3
-from botocore.client import Config
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
-unique_counter = itertools.count()
+# Duplicate imports removed
 
-import logging
-
-# --- LOGGING SETUP ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # --- REPLACED DISPATCHER ---
 def dispatcher():
@@ -386,17 +373,19 @@ def dispatcher():
         try:
             # Heartbeat (Every 10s)
             if time.time() - last_heartbeat > 10:
-                logger.info(f"❤️ Dispatcher Alive. Queue Size: {request_queue.qsize()}")
+                logger.info(f"❤️ Dispatcher Alive. Queue Size: {request_queue.qsize()} | QueueID: {id(request_queue)}")
                 last_heartbeat = time.time()
 
             # 1. Wait for a free slot (Blocking)
-            # logger.info("Dispatcher: Attempting to acquire slot...")
+            logger.info("Dispatcher: Attempting to acquire slot...") 
             active_requests_sem.acquire() 
-            # logger.info("Dispatcher: Slot acquired.")
+            logger.info("Dispatcher: Slot acquired.")
             
             # 2. Slot found! Get the highest priority user
             try:
+                # logger.debug("Dispatcher: Slot acquired. Waiting for user...")
                 # Get ticket from queue (Blocking wait for a user to arrive)
+                logger.info("Dispatcher: Waiting for queue item...")
                 priority, timestamp, uid, user_event = request_queue.get(timeout=1)            
                 
                 # 3. Wake them up
@@ -405,6 +394,7 @@ def dispatcher():
                 
             except queue.Empty:
                 # No users waiting? Release the slot so we can loop back and check again
+                logger.info("Dispatcher: Queue Empty. Releasing slot.")
                 active_requests_sem.release()
                 time.sleep(0.1)
                 
