@@ -8,4 +8,7 @@ gunicorn
 werkzeug
 google-auth
 
-moviepy==1.0.3
+imageio
+python-dotenv
+boto3
+pillow
