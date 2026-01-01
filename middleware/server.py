@@ -970,7 +970,7 @@ def get_admin_payouts(u):
 
 import tempfile
 import base64
-from moviepy.editor import ImageClip, AudioFileClip
+# from moviepy.editor import ImageClip, AudioFileClip # Removed unused dependency
 
 @app.route('/api/generate-video', methods=['POST'])
 @token_required

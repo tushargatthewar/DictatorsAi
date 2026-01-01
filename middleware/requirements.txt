@@ -9,6 +9,7 @@ werkzeug
 google-auth
 
 imageio
+imageio-ffmpeg
 python-dotenv
 boto3
 pillow
