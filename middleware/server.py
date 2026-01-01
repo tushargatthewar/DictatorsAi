@@ -39,7 +39,7 @@ CORS(app)
 MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = "dictator_ai_db"
 # Use /generate_stream endpoint on Backend
-GPU_NODE_URL = os.getenv("GPU_NODE_URL", "http://27.65.48.179:41216").rstrip('/') + "/generate_stream"
+GPU_NODE_URL = os.getenv("GPU_NODE_URL", "http://74.48.140.178:35652").rstrip('/') + "/generate_stream"
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # --- CONCURRENCY CONTROL (SCALABLE QUEUE) ---
@@ -461,14 +461,19 @@ def dispatcher():
             logger.error(f"❌ Dispatcher Crash: {e}", exc_info=True)
             time.sleep(1) # Prevent tight loop crash
 
-# Start Dispatcher
-# Ensure we strictly only start one thread if multiple imports happen (rare in gunicorn but possible)
-if not any(t.name == "DispatcherThread" for t in threading.enumerate()):
-    t = threading.Thread(target=dispatcher, daemon=True, name="DispatcherThread")
-    t.start()
-    logger.info("Dispatcher Thread Launched")
-else:
-    logger.info("Dispatcher Thread already running")
+# --- WORKER THREAD MANAGEMENT ---
+def start_dispatcher_if_necessary():
+    # In Gunicorn, the module is imported in Master (starting thread there), 
+    # but after fork(), the Workers DO NOT have the thread.
+    # We must check and start it inside the Worker process.
+    if not any(t.name == "DispatcherThread" for t in threading.enumerate()):
+        logger.info(f"🚀 Worker {os.getpid()}: Starting Dispatcher Thread")
+        t = threading.Thread(target=dispatcher, daemon=True, name="DispatcherThread")
+        t.start()
+
+@app.before_request
+def ensure_dispatcher():
+    start_dispatcher_if_necessary()
 
 # --- OTHER ROUTES (User, Login, Admin) Copied from previous logic ---
 # (For brevity, I assume standard auth routes login/signup/me exist here. 
