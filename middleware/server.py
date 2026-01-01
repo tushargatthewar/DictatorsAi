@@ -358,32 +358,52 @@ def chat(current_user):
         active_requests_sem.release() # Release slot on error
         return jsonify({"error": "BACKEND_FAILURE"}), 502
 
+import queue
+import threading
+import json
+import itertools
+import boto3
+from botocore.client import Config
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+unique_counter = itertools.count()
+
+import logging
+
+# --- LOGGING SETUP ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # --- REPLACED DISPATCHER ---
 def dispatcher():
     """
     Background thread that moves users from Queue -> Active Slot
     """
-    print("[INFO] Priority Dispatcher Started")
+    logger.info("[INFO] Priority Dispatcher Started")
     while True:
-        # 1. Wait for a free slot (Blocking)
-        active_requests_sem.acquire() 
-        
-        # 2. Slot found! Get the highest priority user
         try:
-            # Get ticket from queue (Blocking wait for a user to arrive)
-            # This waits if queue is empty, but we hold the semaphore!
-            # To prevent holding the semaphore while queue is empty, we peek.
+            # 1. Wait for a free slot (Blocking)
+            # logger.debug("Dispatcher: Waiting for slot...") 
+            active_requests_sem.acquire() 
             
-            # Better Pattern:
-            # We have a slot. Is there a user?
-            priority, timestamp, uid, user_event = request_queue.get(timeout=1)            
-            # 3. Wake them up
-            user_event.set()
-            
-        except queue.Empty:
-            # No users waiting? Release the slot so we can loop back and check again
-            active_requests_sem.release()
-            time.sleep(0.1)
+            # 2. Slot found! Get the highest priority user
+            try:
+                # logger.debug("Dispatcher: Slot acquired. Waiting for user...")
+                # Get ticket from queue (Blocking wait for a user to arrive)
+                priority, timestamp, uid, user_event = request_queue.get(timeout=1)            
+                
+                # 3. Wake them up
+                logger.info(f"Dispatcher: Waking up Request {uid} (Priority {priority})")
+                user_event.set()
+                
+            except queue.Empty:
+                # No users waiting? Release the slot so we can loop back and check again
+                active_requests_sem.release()
+                time.sleep(0.1)
+                
+        except Exception as e:
+            logger.error(f"❌ Dispatcher Crash: {e}", exc_info=True)
+            time.sleep(1) # Prevent tight loop crash
 
 # Start Dispatcher
 threading.Thread(target=dispatcher, daemon=True).start()
