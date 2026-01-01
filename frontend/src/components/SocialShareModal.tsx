@@ -428,6 +428,15 @@ const SocialShareModal: React.FC<SocialShareModalProps> = ({ isOpen, onClose, da
                 {/* VISIBLE MODAL CONTENT */}
                 <div className="w-full max-w-6xl bg-zinc-900 md:rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row shadow-black/50 border border-white/10 md:border-0 relative">
 
+                    {/* CLOSE BUTTON - Top Right Absolute */}
+                    <button
+                        onClick={onClose}
+                        className="absolute top-4 right-4 z-50 p-2 bg-black/50 hover:bg-red-600/80 text-white rounded-full transition-all border border-white/10 hover:border-white/50 backdrop-blur-md"
+                        title="Close"
+                    >
+                        <XMarkIcon className="w-6 h-6" />
+                    </button>
+
                     {/* 1. VISIBLE PREVIEW (Top on Mobile, Right on Desktop) */}
                     {/* HIDE on mobile if video is ready, to show only the video/controls and save space */}
                     <div className={`w-full md:flex-1 bg-black relative flex items-start justify-center overflow-hidden order-1 md:order-2 ${videoBlob ? 'hidden md:flex' : 'flex'}`}>

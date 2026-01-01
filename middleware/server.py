@@ -76,7 +76,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='dist', static_url_path='')
-CORS(app)
+# CORS Configuration - Explicitly allow Vercel and Localhost
+CORS(app, resources={r"/*": {"origins": ["https://dictators-ai.vercel.app", "http://localhost:5173", "*"]}})
 
 # --- CONFIGURATION ---
 MONGO_URI = os.getenv("MONGO_URI")
