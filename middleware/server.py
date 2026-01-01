@@ -26,6 +26,49 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 unique_counter = itertools.count()
 
+# --- FILEBASE CONFIG ---
+FILEBASE_KEY = os.getenv("FILEBASE_KEY", "C1A1C1B021991042D1A1")
+FILEBASE_SECRET = os.getenv("FILEBASE_SECRET", "C2IpJ7KB6wxBXl6LjWCMX5L5RcHFfYPs9MPcfyAf")
+FILEBASE_BUCKET = os.getenv("FILEBASE_BUCKET", "hitler-audio")
+
+s3_client = None
+if FILEBASE_KEY and FILEBASE_SECRET:
+    try:
+        s3_client = boto3.client('s3',
+            endpoint_url='https://s3.filebase.com',
+            aws_access_key_id=FILEBASE_KEY,
+            aws_secret_access_key=FILEBASE_SECRET,
+            config=Config(signature_version='s3v4', region_name='us-east-1')
+        )
+        print("✅ Middleware Filebase S3 Client Configured.")
+    except Exception as e:
+        print(f"⚠️ Middleware Filebase Config Failed: {e}")
+
+def get_refreshed_url(old_url):
+    """Refreshes a signed URL if we have S3 access."""
+    if not s3_client or not old_url: return old_url
+    
+    try:
+        # Extract Key (Filename) from URL
+        # URL Format: https://s3.filebase.com/BUCKET/KEY?Signature...
+        from urllib.parse import urlparse
+        path = urlparse(old_url).path # /hitler-audio/filename.wav or /filename.wav
+        
+        # Remove bucket name if present in path (Filebase paths vary by endpoint style)
+        key = path.split('/')[-1]
+        
+        # Generate NEW Signed URL
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': FILEBASE_BUCKET, 'Key': key},
+            ExpiresIn=3600 # 1 Hour
+        )
+        return url
+    except Exception as e:
+        print(f"Failed to refresh URL: {e}")
+        return old_url
+
+
 import logging
 
 # --- LOGGING SETUP ---
@@ -578,17 +621,23 @@ from email.mime.multipart import MIMEMultipart
 
 # HELPERS
 def send_smtp_email(to_email, subject, body):
-    # Credentials from Environment or Hardcoded (User needs to fill this)
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))
-    smtp_user = os.getenv("SMTP_USER", "")      # YOUR EMAIL
-    smtp_pass = os.getenv("SMTP_PASSWORD", "")  # YOUR APP PASSWORD
-    
-    if not smtp_user or not smtp_pass:
-        print("[WARN] SMTP Credentials missing. Email not sent via network.")
-        return False
-
     try:
+        # Credentials from Environment or Hardcoded (User needs to fill this)
+        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        try:
+            smtp_port_val = os.getenv("SMTP_PORT", 587)
+            smtp_port = int(smtp_port_val)
+        except ValueError:
+            print(f"[WARN] Invalid SMTP_PORT: {os.getenv('SMTP_PORT')}. Defaulting to 587.")
+            smtp_port = 587
+            
+        smtp_user = os.getenv("SMTP_USER", "")      # YOUR EMAIL
+        smtp_pass = os.getenv("SMTP_PASSWORD", "")  # YOUR APP PASSWORD
+        
+        if not smtp_user or not smtp_pass:
+            print("[WARN] SMTP Credentials missing. Email not sent via network.")
+            return False
+
         msg = MIMEMultipart()
         msg['From'] = smtp_user
         msg['To'] = to_email
